@@ -61,6 +61,18 @@ namespace HomePodStreamer.Services
             catch (Exception ex)
             {
                 Logger.Error("Device discovery failed", ex);
+
+                // Check if it's a Bonjour/mDNS service missing error
+                if (ex.Message.Contains("protocol") ||
+                    ex.InnerException?.Message.Contains("protocol") == true ||
+                    ex.Message.Contains("10043"))
+                {
+                    throw new InvalidOperationException(
+                        "Bonjour service is not installed. Please install Bonjour Print Services from Apple " +
+                        "(https://support.apple.com/kb/DL999) or iTunes to enable device discovery.",
+                        ex);
+                }
+
                 throw;
             }
         }

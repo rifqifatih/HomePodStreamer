@@ -2,6 +2,7 @@ using System;
 using System.ComponentModel;
 using System.Windows;
 using HomePodStreamer.ViewModels;
+using HomePodStreamer.Models;
 
 namespace HomePodStreamer.Views
 {
@@ -58,6 +59,15 @@ namespace HomePodStreamer.Views
         {
             _allowClose = true;
             Application.Current.Shutdown();
+        }
+
+        private async void DeviceCheckBox_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is System.Windows.Controls.CheckBox checkBox &&
+                checkBox.DataContext is HomePodStreamer.Models.HomePodDevice device)
+            {
+                await _viewModel.ToggleDeviceCommand.ExecuteAsync(device);
+            }
         }
 
         protected override void OnStateChanged(EventArgs e)

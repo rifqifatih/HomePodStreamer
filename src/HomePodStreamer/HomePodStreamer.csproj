@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType>WinExe</OutputType>
+    <OutputType>Exe</OutputType>
     <TargetFramework>net9.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <UseWPF>true</UseWPF>
@@ -13,7 +13,7 @@
     <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
     <PackageReference Include="NAudio.Core" Version="2.2.1" />
     <PackageReference Include="LibALAC" Version="1.0.7" />
-    <PackageReference Include="Zeroconf" Version="3.6.11" />
+    <PackageReference Include="Zeroconf" Version="3.7.16" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0" />

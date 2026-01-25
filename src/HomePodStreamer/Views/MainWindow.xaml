@@ -93,10 +93,9 @@
                                 </Grid.ColumnDefinitions>
 
                                 <CheckBox Grid.Column="0"
-                                          IsChecked="{Binding IsEnabled}"
+                                          IsChecked="{Binding IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                           VerticalAlignment="Center"
-                                          Command="{Binding DataContext.ToggleDeviceCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                          CommandParameter="{Binding}"/>
+                                          Click="DeviceCheckBox_Click"/>
 
                                 <StackPanel Grid.Column="1" Margin="15,0">
                                     <TextBlock Text="{Binding Name}"
