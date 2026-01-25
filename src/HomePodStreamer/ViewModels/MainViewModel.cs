@@ -127,7 +127,8 @@ namespace HomePodStreamer.ViewModels
         {
             try
             {
-                device.IsEnabled = !device.IsEnabled;
+                // Note: IsEnabled is already toggled by the CheckBox TwoWay binding
+                // We just need to handle the logic based on the new state
 
                 if (device.IsEnabled && IsStreaming)
                 {
