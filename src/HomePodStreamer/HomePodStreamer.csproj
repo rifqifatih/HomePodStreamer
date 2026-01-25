@@ -22,7 +22,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="lib\native\**\*">
+    <None Include="..\..\lib\native\**\*">
+      <Link>lib\native\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
