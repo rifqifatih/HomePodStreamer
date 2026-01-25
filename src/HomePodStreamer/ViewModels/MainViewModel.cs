@@ -86,7 +86,7 @@ namespace HomePodStreamer.ViewModels
         [RelayCommand]
         private async Task ToggleStreamingAsync()
         {
-            if (_isStreaming)
+            if (IsStreaming)
             {
                 await StopStreamingAsync();
             }
@@ -129,7 +129,7 @@ namespace HomePodStreamer.ViewModels
             {
                 device.IsEnabled = !device.IsEnabled;
 
-                if (device.IsEnabled && _isStreaming)
+                if (device.IsEnabled && IsStreaming)
                 {
                     await _airPlayService.ConnectToDeviceAsync(device);
                 }
