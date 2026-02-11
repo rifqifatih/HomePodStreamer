@@ -7,13 +7,13 @@
     <UseWPF>true</UseWPF>
     <AssemblyName>HomePodStreamer</AssemblyName>
     <RootNamespace>HomePodStreamer</RootNamespace>
+    <ApplicationIcon>Resources\Icons\app-icon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
     <PackageReference Include="NAudio.Core" Version="2.2.1" />
-    <PackageReference Include="LibALAC" Version="1.0.7" />
-    <PackageReference Include="Zeroconf" Version="3.7.16" />
+
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0" />
@@ -22,8 +22,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="..\..\lib\native\**\*">
-      <Link>lib\native\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    <Resource Include="Resources\Icons\app-icon.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\scripts\**\*">
+      <Link>scripts\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

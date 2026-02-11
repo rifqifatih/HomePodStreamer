@@ -3,16 +3,19 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:tb="http://www.hardcodet.net/taskbar"
         Title="HomePod Streamer"
+        Icon="/Resources/Icons/app-icon.ico"
         Height="550" Width="500"
         WindowStartupLocation="CenterScreen"
         Closing="Window_Closing">
 
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisConverter"/>
+    </Window.Resources>
 
-        <!-- System Tray Icon -->
-        <tb:TaskbarIcon x:Key="NotifyIcon"
-                        x:Name="NotifyIcon"
+    <Grid>
+        <!-- System Tray Icon (non-visual, lives in tray) -->
+        <tb:TaskbarIcon x:Name="NotifyIcon"
+                        IconSource="/Resources/Icons/app-icon.ico"
                         ToolTipText="HomePod Streamer"
                         TrayMouseDoubleClick="NotifyIcon_TrayMouseDoubleClick">
             <tb:TaskbarIcon.ContextMenu>
@@ -24,9 +27,8 @@
                 </ContextMenu>
             </tb:TaskbarIcon.ContextMenu>
         </tb:TaskbarIcon>
-    </Window.Resources>
 
-    <Grid Margin="20">
+        <Grid Margin="20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -168,5 +170,6 @@
                           Margin="10,0,0,0"/>
             </Grid>
         </StackPanel>
+        </Grid>
     </Grid>
 </Window>

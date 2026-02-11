@@ -1,5 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -20,6 +21,7 @@ namespace HomePodStreamer.ViewModels
         private readonly IAirPlayService _airPlayService;
         private readonly IDeviceDiscoveryService _deviceDiscoveryService;
         private readonly ISettingsService _settingsService;
+        private readonly IOwntoneHostService _owntoneHostService;
 
         private readonly AudioBuffer _audioBuffer;
         private CancellationTokenSource? _streamingCts;
@@ -45,13 +47,15 @@ namespace HomePodStreamer.ViewModels
             IAudioEncoderService audioEncoderService,
             IAirPlayService airPlayService,
             IDeviceDiscoveryService deviceDiscoveryService,
-            ISettingsService settingsService)
+            ISettingsService settingsService,
+            IOwntoneHostService owntoneHostService)
         {
             _audioCaptureService = audioCaptureService;
             _audioEncoderService = audioEncoderService;
             _airPlayService = airPlayService;
             _deviceDiscoveryService = deviceDiscoveryService;
             _settingsService = settingsService;
+            _owntoneHostService = owntoneHostService;
 
             _audioBuffer = new AudioBuffer();
             _devices = new ObservableCollection<HomePodDevice>();
@@ -101,6 +105,16 @@ namespace HomePodStreamer.ViewModels
         {
             try
             {
+                StatusMessage = "Checking owntone container...";
+
+                // Ensure container is running, restart if needed
+                if (!_owntoneHostService.IsRunning)
+                {
+                    StatusMessage = "Starting owntone container...";
+                    await _owntoneHostService.StartAsync();
+                    await _owntoneHostService.WaitForHealthyAsync(60);
+                }
+
                 StatusMessage = "Scanning for HomePods...";
                 await _deviceDiscoveryService.StartDiscoveryAsync();
 
@@ -200,18 +214,24 @@ namespace HomePodStreamer.ViewModels
                 Logger.Info("Stopping streaming");
                 StatusMessage = "Stopping streaming...";
 
-                // Stop audio capture
+                // Stop audio capture first (no more data coming in)
                 _audioCaptureService.StopCapture();
 
                 // Cancel processing task
                 _streamingCts?.Cancel();
+
+                // Stop AirPlay (closes TCP connection, unblocks any pending writes)
+                _airPlayService.StopAll();
+
+                // Now await the processing task (should exit quickly)
                 if (_processingTask != null)
                 {
-                    await _processingTask;
+                    var completed = await Task.WhenAny(_processingTask, Task.Delay(3000));
+                    if (completed != _processingTask)
+                    {
+                        Logger.Warning("Processing task did not stop within 3 seconds");
+                    }
                 }
-
-                // Disconnect from all devices
-                _airPlayService.StopAll();
 
                 // Clear buffer
                 _audioBuffer.Clear();
@@ -229,6 +249,8 @@ namespace HomePodStreamer.ViewModels
             }
         }
 
+        private int _captureEventCount = 0;
+
         private void OnAudioDataAvailable(object? sender, WaveInEventArgs e)
         {
             try
@@ -242,6 +264,17 @@ namespace HomePodStreamer.ViewModels
                     // Encode and enqueue
                     var encoded = _audioEncoderService.Encode(audioData);
                     _audioBuffer.Enqueue(encoded);
+
+                    // Log first few captures
+                    _captureEventCount++;
+                    if (_captureEventCount <= 3)
+                    {
+                        Logger.Info($"Audio captured #{_captureEventCount}: {e.BytesRecorded} bytes -> encoded to {encoded.Length} bytes, queued to buffer");
+                    }
+                    else if (_captureEventCount == 4)
+                    {
+                        Logger.Info("Audio capture working normally (further logs suppressed)");
+                    }
                 }
             }
             catch (Exception ex)
@@ -250,18 +283,58 @@ namespace HomePodStreamer.ViewModels
             }
         }
 
+        private int _processedChunkCount = 0;
+
         private async Task ProcessAudioAsync(CancellationToken cancellationToken)
         {
+            // owntone expects a constant stream: 44100Hz * 16-bit * 2ch = 176,400 bytes/sec
+            const int BYTES_PER_SECOND = 44100 * 2 * 2; // 176,400
+            var stopwatch = Stopwatch.StartNew();
+            long totalBytesSent = 0;
+            int silenceCount = 0;
+
             try
             {
                 Logger.Info("Audio processing task started");
 
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    var audioData = await _audioBuffer.DequeueAsync(cancellationToken);
+                    var audioData = await _audioBuffer.DequeueAsync(
+                        TimeSpan.FromMilliseconds(5), cancellationToken);
+
                     if (audioData != null)
                     {
+                        _processedChunkCount++;
+                        if (_processedChunkCount <= 3)
+                        {
+                            Logger.Info($"ProcessAudioAsync: Dequeued chunk #{_processedChunkCount}, {audioData.Length} bytes, calling SendAudioToAll");
+                        }
+                        else if (_processedChunkCount == 4)
+                        {
+                            if (silenceCount > 0)
+                                Logger.Info($"ProcessAudioAsync: Sent {silenceCount} silence fills so far");
+                            Logger.Info("ProcessAudioAsync working normally (further logs suppressed)");
+                        }
+
                         _airPlayService.SendAudioToAll(audioData);
+                        totalBytesSent += audioData.Length;
+                    }
+
+                    {
+                        long expectedBytes = stopwatch.ElapsedMilliseconds * BYTES_PER_SECOND / 1000;
+                        long deficit = expectedBytes - totalBytesSent;
+
+                        if (deficit > 0)
+                        {
+                            int silenceSize = (int)(deficit / 4) * 4;
+                            if (silenceSize > 0)
+                            {
+                                var silence = new byte[silenceSize];
+                                _airPlayService.SendAudioToAll(silence);
+                                totalBytesSent += silenceSize;
+                                silenceCount++;
+                            }
+                        }
                     }
                 }
 

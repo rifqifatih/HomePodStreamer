@@ -1,4 +1,4 @@
-using System;
+using System.Collections.Generic;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace HomePodStreamer.Models
@@ -17,6 +17,7 @@ namespace HomePodStreamer.Models
     {
         public string Id { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
+        public string Hostname { get; set; } = string.Empty;
         public string IPAddress { get; set; } = string.Empty;
         public int Port { get; set; }
 
@@ -32,7 +33,15 @@ namespace HomePodStreamer.Models
         [ObservableProperty]
         private string _errorMessage = string.Empty;
 
-        // Internal handle for process management
-        internal IntPtr NativeHandle { get; set; }
+        // owntone output ID for API control
+        public string OwntoneOutputId { get; set; } = string.Empty;
+
+        // AirPlay mDNS TXT records (used for mDNS proxy into Docker)
+        public Dictionary<string, string> AirPlayTxtRecords { get; set; } = new();
+
+        // RAOP (_raop._tcp) service info for owntone compatibility
+        public string RaopServiceName { get; set; } = string.Empty;
+        public int RaopPort { get; set; }
+        public Dictionary<string, string>? RaopTxtRecords { get; set; }
     }
 }

@@ -58,6 +58,7 @@ namespace HomePodStreamer.Views
         private void Quit_Click(object sender, RoutedEventArgs e)
         {
             _allowClose = true;
+            NotifyIcon?.Dispose();
             Application.Current.Shutdown();
         }
 

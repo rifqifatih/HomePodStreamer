@@ -10,6 +10,7 @@ namespace HomePodStreamer.Services
         Task DisconnectFromDeviceAsync(HomePodDevice device);
         void SendAudioToAll(byte[] encodedBuffer);
         void SetVolume(int volume);
+        Task StartPlaybackAsync();
         void StopAll();
     }
 }

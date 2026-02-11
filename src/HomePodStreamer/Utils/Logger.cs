@@ -41,6 +41,7 @@ namespace HomePodStreamer.Utils
                     var logEntry = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [{level}] {message}";
                     File.AppendAllText(LogFilePath, logEntry + Environment.NewLine);
                     System.Diagnostics.Debug.WriteLine(logEntry);
+                    Console.WriteLine(logEntry);
                 }
             }
             catch

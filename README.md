@@ -1,165 +1,183 @@
 # HomePod Streamer
 
-A Windows desktop application that streams all system audio to Apple HomePod 2 devices via AirPlay.
+A Windows desktop application that streams all system audio to Apple HomePod speakers via AirPlay, using [owntone-server](https://github.com/owntone/owntone-server) running in WSL2.
 
 ## Features
 
-- Stream all system audio (games, Spotify, browser, etc.) to HomePod devices
-- Support for multiple HomePods simultaneously with automatic synchronization
+- Stream all system audio (Spotify, YouTube, games, etc.) to HomePod devices
+- Support for multiple HomePods simultaneously
+- Real-time volume control via owntone API
 - System tray integration for background operation
-- Volume control
 - Persistent settings (remembers enabled devices and volume)
-- Simple, minimal UI
 
-## Requirements
+## Prerequisites
 
-- Windows 10 or later
-- .NET 7.0 or later
-- Visual Studio 2022 (for building libraop)
-- HomePod 2 or other AirPlay 2 compatible devices on the same network
+- **Windows 11** (required for WSL2 mirrored networking)
+- **.NET 9 SDK** ([download](https://dotnet.microsoft.com/download/dotnet/9.0))
+- **WSL2 with Ubuntu** installed (`wsl --install -d Ubuntu`)
+- **owntone-server** built from source inside WSL2 Ubuntu (see setup below)
+- **Windows Firewall rule** allowing inbound connections from your HomePod's IP (for AirPlay handshake)
 
-## Building the Project
+### WSL2 Setup
 
-### Step 1: Clone and Build libraop
+#### 1. Enable Mirrored Networking
 
-The application requires `raop_play.exe` from the libraop library to handle AirPlay streaming.
+owntone uses mDNS/Avahi to discover HomePod on the LAN. This requires WSL2 mirrored networking.
 
-1. **Clone libraop repository:**
-   ```bash
-   git clone https://github.com/philippe44/libraop
-   cd libraop
-   ```
+Create or edit `%UserProfile%\.wslconfig`:
 
-2. **Open in Visual Studio 2022:**
-   - Open `vs2022/raop_play/raop_play.sln` in Visual Studio 2022
+```ini
+[wsl2]
+networkingMode=mirrored
+```
 
-3. **Build the project:**
-   - Select **Release** configuration
-   - Select **x64** platform
-   - Build → Build Solution (or press Ctrl+Shift+B)
+Then restart WSL:
+```
+wsl --shutdown
+```
 
-4. **Copy the executable:**
-   - Find `raop_play.exe` in `vs2022/raop_play/x64/Release/`
-   - Copy it to `HomePodStreamer/lib/native/raop_play.exe`
+#### 2. Install owntone in WSL2 Ubuntu
 
-   ```bash
-   # From the libraop directory:
-   copy vs2022\raop_play\x64\Release\raop_play.exe ..\HomePodStreamer\lib\native\
-   ```
+Run the included setup script from PowerShell:
 
-### Step 2: Build HomePod Streamer
+```
+wsl -d Ubuntu -u root -- bash $(wsl wslpath "scripts/setup-wsl-owntone.sh")
+```
 
-1. **Restore NuGet packages:**
-   ```bash
-   cd HomePodStreamer
-   dotnet restore
-   ```
+Or manually in a WSL terminal:
+```bash
+cd /mnt/c/path/to/HomePodStreamer
+sudo bash scripts/setup-wsl-owntone.sh
+```
 
-2. **Build the application:**
-   ```bash
-   dotnet build src/HomePodStreamer/HomePodStreamer.csproj -c Release
-   ```
+This clones owntone-server from GitHub, builds from source, and installs it.
 
-3. **Run the application:**
-   ```bash
-   dotnet run --project src/HomePodStreamer/HomePodStreamer.csproj
-   ```
+#### 3. Add Firewall Rule for HomePod
 
-   Or open `HomePodStreamer.sln` in Visual Studio and press F5.
+AirPlay requires bidirectional connections. The HomePod needs to connect back to your PC on random ports during the RTSP handshake. Add a firewall rule for your HomePod's IP:
+
+```powershell
+# Replace with your HomePod's IP address
+New-NetFirewallRule -DisplayName "HomePod AirPlay" -Direction Inbound -RemoteAddress 192.168.x.x -Action Allow
+```
+
+You can find your HomePod's IP in the Apple Home app under device settings.
+
+## Build & Run
+
+```
+dotnet restore
+dotnet build src/HomePodStreamer/HomePodStreamer.csproj
+dotnet run --project src/HomePodStreamer/HomePodStreamer.csproj
+```
+
+Or open `HomePodStreamer.sln` in Visual Studio and press F5.
+
+The app automatically starts owntone in WSL2 on launch and stops it on exit.
 
 ## Usage
 
-### First Time Setup
-
-1. Launch HomePodStreamer
-2. Click **"Refresh Devices"** to discover HomePods on your network
-3. Enable the HomePods you want to stream to by checking the boxes
-4. Click **"Start Streaming"**
-5. Play any audio on your PC - it will stream to the enabled HomePods
+1. Click **"Refresh Devices"** to discover HomePods on your network
+2. Check the HomePods you want to stream to
+3. Click **"Start Streaming"**
+4. Play any audio on your PC
 
 ### System Tray
 
-- The app minimizes to the system tray when closed
+- The app minimizes to the system tray when the window is closed
 - **Double-click** the tray icon to show/hide the window
-- **Right-click** the tray icon for quick actions:
-  - Show Window
-  - Toggle Streaming
-  - Quit (graceful shutdown)
-
-### Volume Control
-
-- Use the slider at the bottom to control volume
-- Volume applies to all connected devices
-- Settings are saved automatically
-
-## Project Structure
-
-```
-HomePodStreamer/
-├── src/HomePodStreamer/
-│   ├── Models/              # Data models
-│   ├── Services/            # Business logic services
-│   ├── ViewModels/          # MVVM ViewModels
-│   ├── Views/               # WPF UI
-│   ├── Utils/               # Utility classes
-│   └── Resources/           # Icons and assets
-├── lib/native/              # Native dependencies (raop_play.exe)
-└── README.md
-```
+- **Right-click** for quick actions (Show, Toggle Streaming, Quit)
 
 ## Architecture
 
-### Technology Stack
+```
+Windows (WPF App)
+  WASAPI Capture -> Encode (S16LE 44.1kHz stereo) -> TCP localhost:5555
+  UI <-> owntone JSON API (HTTP localhost:3689) for device control + volume
 
-- **Language**: C# .NET 7+
-- **UI Framework**: WPF with MVVM pattern
-- **Audio Capture**: NAudio (WASAPI loopback)
-- **Device Discovery**: Zeroconf (mDNS/Bonjour)
-- **AirPlay Streaming**: libraop (process wrapper)
-- **DI Container**: Microsoft.Extensions.DependencyInjection
+WSL2 Ubuntu (owntone-server)
+  socat TCP:5555 -> FIFO pipe -> owntone (pipe input) -> AirPlay -> HomePod
+```
 
 ### Audio Pipeline
 
+1. **AudioCaptureService** - Captures all system audio via WASAPI loopback
+2. **AudioEncoderService** - Converts float32 48kHz to int16 44.1kHz PCM
+3. **AudioBuffer** - Thread-safe async queue between capture and streaming
+4. **AirPlayOwntoneService** - Sends PCM via TCP to owntone's FIFO pipe
+5. **OwntoneApiClient** - Controls outputs and playback via owntone's HTTP API
+6. **WslOwntoneService** - Manages owntone lifecycle in WSL2
+
+### Project Structure
+
 ```
-System Audio → WASAPI Loopback → Format Conversion (float32→int16)
-    → Audio Buffer → raop_play.exe → AirPlay → HomePod
+HomePodStreamer/
++-- src/HomePodStreamer/
+|   +-- Models/              # Data models (HomePodDevice, OwntoneModels, etc.)
+|   +-- Services/            # Business logic services
+|   +-- ViewModels/          # MVVM ViewModels
+|   +-- Views/               # WPF UI (MainWindow)
+|   +-- Utils/               # AudioBuffer, Logger
+|   +-- Resources/Icons/     # App icon
++-- scripts/
+|   +-- owntone.conf         # owntone configuration
+|   +-- start-owntone.sh     # WSL startup script (FIFO + socat + owntone)
+|   +-- setup-wsl-owntone.sh # One-time owntone build/install script
++-- README.md
++-- IMPLEMENTATION_STATUS.md
 ```
 
-### Key Services
+## Known Limitations
 
-- **AudioCaptureService**: Captures all system audio using WASAPI loopback
-- **AudioEncoderService**: Converts audio format for AirPlay compatibility
-- **DeviceDiscoveryService**: Discovers HomePods via mDNS
-- **AirPlayProcessService**: Manages raop_play.exe processes and audio streaming
-- **SettingsService**: Persists user preferences
+### AirPlay Latency (~2 seconds)
+
+AirPlay 1 (RAOP) has a mandatory ~2-second audio buffer at the receiver. This is built into the protocol for clock synchronization and cannot be reduced. Every audio sample arrives at the HomePod approximately 2 seconds after being captured.
+
+This means:
+- **Music/podcasts**: Works great, the delay is not noticeable
+- **Video**: Audio will be ~2s behind video (no sync compensation)
+- **Gaming**: Not suitable for latency-sensitive use
+
+This is the same latency you get with any AirPlay sender. Apple TV compensates by delaying the video to match the audio. owntone uses AirPlay 1 because AirPlay 2 is proprietary and not reverse-engineered for open-source use.
+
+### Audio Source
+
+WASAPI loopback captures the default audio output device. Applications that output to a different device (e.g., Spotify in exclusive mode) may not be captured. Ensure your audio plays through the default Windows output device.
+
+### Windows 11
+
+WSL2 mirrored networking requires Windows 11. The WASAPI capture itself works on Windows 10+, but owntone in WSL2 needs mirrored networking for mDNS discovery.
 
 ## Troubleshooting
 
-### "raop_play.exe not found"
+### owntone won't start
 
-Make sure you've built libraop and copied `raop_play.exe` to `lib/native/` directory.
+- Ensure WSL2 Ubuntu is installed: `wsl -l -v` should show "Ubuntu" with version 2
+- Ensure owntone is installed: `wsl -d Ubuntu -- owntone --version`
+- Check logs in `%APPDATA%\HomePodStreamer\Logs\`
 
 ### No devices found
 
-- Ensure HomePods are powered on and connected to the same Wi-Fi network
-- Check firewall settings - mDNS requires UDP port 5353
-- Try restarting the HomePods
+- Verify mirrored networking: `wsl -d Ubuntu -- ip addr` should show a `192.168.x.x` address
+- Ensure HomePod is powered on and on the same network
+- Check owntone API directly: `Invoke-RestMethod http://127.0.0.1:3689/api/outputs`
+- Restart Avahi in WSL: `wsl -d Ubuntu -u root -- avahi-daemon -D`
 
-### Audio stuttering or dropouts
+### No sound after starting stream
+
+- Check Windows Firewall: HomePod needs to connect back to your PC
+- Verify the firewall rule covers your HomePod's IP
+- In Apple Home app, ensure "Allow Speaker Access" is set to "Everyone"
+- Check logs for "evrtsp_read: read timeout" (indicates firewall blocking)
+
+### Audio stuttering
 
 - Check Wi-Fi signal strength
-- Close unnecessary applications to free up CPU/memory
-- Try connecting your PC to the router via Ethernet cable
+- Use wired Ethernet if possible
+- Check CPU usage (resampling + encoding runs continuously)
 
-### Process crashes immediately
+### App logs
 
-- Check the logs in `%APPDATA%\HomePodStreamer\Logs\`
-- Ensure HomePod is reachable (ping the IP address)
-- Try restarting both the app and the HomePod
-
-## Logs
-
-Application logs are stored in:
 ```
 %APPDATA%\HomePodStreamer\Logs\log_YYYYMMDD.txt
 ```
@@ -169,39 +187,25 @@ Settings are stored in:
 %APPDATA%\HomePodStreamer\settings.json
 ```
 
-## Known Limitations
+## Technology Stack
 
-1. **Latency**: ~100-150ms latency may be noticeable for gaming
-2. **Volume Control**: Changing volume requires restarting connections (limitation of process wrapper approach)
-3. **Windows 10+**: Requires Windows 10 or later for WASAPI loopback
-4. **Network**: Requires stable Wi-Fi; wired Ethernet recommended for best quality
-
-## Future Improvements (Phase 2)
-
-- Migrate to native P/Invoke integration with libraop.dll for better performance
-- Per-application audio capture (Windows 11)
-- Real-time volume control without reconnection
-- Audio format selection (ALAC vs AAC)
-- Auto-discovery and connection on startup
+- **Language**: C# / .NET 9
+- **UI**: WPF with MVVM (CommunityToolkit.Mvvm)
+- **Audio Capture**: NAudio (WASAPI loopback)
+- **AirPlay Backend**: owntone-server in WSL2
+- **Device Discovery**: owntone HTTP API
+- **System Tray**: Hardcodet.NotifyIcon.Wpf
+- **DI**: Microsoft.Extensions.DependencyInjection
 
 ## License
 
 This project uses the following open-source libraries:
 
-- **NAudio**: MIT License
-- **Zeroconf**: MIT License
-- **CommunityToolkit.Mvvm**: MIT License
-- **libraop**: Apache 2.0 License
-
-## Contributing
-
-This is a personal project, but suggestions and bug reports are welcome via GitHub issues.
-
-## Credits
-
-- **libraop** by philippe44: https://github.com/philippe44/libraop
-- AirPlay protocol documentation from the open-source community
+- [NAudio](https://github.com/naudio/NAudio) - MIT License
+- [CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet) - MIT License
+- [owntone-server](https://github.com/owntone/owntone-server) - GPL-2.0 License
+- [Hardcodet.NotifyIcon.Wpf](https://github.com/hardcodet/wpf-notifyicon) - CPOL License
 
 ---
 
-**Disclaimer**: This project is not affiliated with or endorsed by Apple Inc. AirPlay is a trademark of Apple Inc.
+**Disclaimer**: This project is not affiliated with or endorsed by Apple Inc. AirPlay and HomePod are trademarks of Apple Inc.

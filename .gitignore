@@ -197,14 +197,6 @@ $RECYCLE.BIN/
 # Linux
 *~
 
-# Application-specific runtime files
-# User settings and logs (these are created at runtime)
-# Note: We keep the lib/native/ folder structure but ignore the actual binary
-lib/native/raop_play.exe
-lib/native/*.dll
-lib/native/*.so
-lib/native/*.dylib
-
 # Application data files (runtime generated)
 AppData/
 *.log

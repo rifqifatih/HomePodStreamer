@@ -56,6 +56,31 @@ namespace HomePodStreamer.Utils
             return null;
         }
 
+        /// <summary>
+        /// Try to dequeue with a timeout. Returns null if no data within the timeout.
+        /// </summary>
+        public async Task<byte[]?> DequeueAsync(TimeSpan timeout, CancellationToken cancellationToken)
+        {
+            if (_disposed) return null;
+
+            try
+            {
+                if (await _semaphore.WaitAsync(timeout, cancellationToken))
+                {
+                    if (_queue.TryDequeue(out var data))
+                    {
+                        return data;
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                return null;
+            }
+
+            return null;
+        }
+
         public void Clear()
         {
             while (_queue.TryDequeue(out _)) { }

@@ -1,4 +1,5 @@
 using System;
+using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
@@ -34,7 +35,7 @@ namespace HomePodStreamer
         private const int CTRL_CLOSE_EVENT = 2;
         private const int SW_HIDE = 0;
 
-        private void OnStartup(object sender, StartupEventArgs e)
+        private async void OnStartup(object sender, StartupEventArgs e)
         {
             // Set up Ctrl+C handler for graceful shutdown
             SetConsoleCtrlHandler(ConsoleCtrlHandler, true);
@@ -45,6 +46,26 @@ namespace HomePodStreamer
             var services = new ServiceCollection();
             ConfigureServices(services);
             _serviceProvider = services.BuildServiceProvider();
+
+            // Start owntone in WSL and wait for it to be healthy
+            try
+            {
+                var owntoneService = _serviceProvider.GetRequiredService<IOwntoneHostService>();
+                Logger.Info("Starting owntone in WSL...");
+                await owntoneService.StartAsync();
+                await owntoneService.WaitForHealthyAsync(60);
+                Logger.Info("Owntone is ready");
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("Failed to start owntone", ex);
+                MessageBox.Show(
+                    $"Failed to start owntone in WSL:\n\n{ex.Message}\n\n" +
+                    "Ensure WSL2 Ubuntu is installed with owntone built from source.",
+                    "HomePod Streamer - Startup Error",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
 
             var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
             mainWindow.Show();
@@ -112,14 +133,21 @@ namespace HomePodStreamer
                 builder.SetMinimumLevel(LogLevel.Information);
             });
 
+            // HTTP client for owntone API
+            services.AddSingleton<HttpClient>();
+
+            // Owntone services
+            services.AddSingleton<IOwntoneApiClient, OwntoneApiClient>();
+            services.AddSingleton<IOwntoneHostService, WslOwntoneService>();
+
             // ViewModels
             services.AddSingleton<MainViewModel>();
 
             // Services
             services.AddSingleton<IAudioCaptureService, AudioCaptureService>();
             services.AddSingleton<IAudioEncoderService, AudioEncoderService>();
-            services.AddSingleton<IAirPlayService, AirPlayProcessService>();
-            services.AddSingleton<IDeviceDiscoveryService, DeviceDiscoveryService>();
+            services.AddSingleton<IAirPlayService, AirPlayOwntoneService>();
+            services.AddSingleton<IDeviceDiscoveryService, HybridDeviceDiscoveryService>();
             services.AddSingleton<ISettingsService, SettingsService>();
 
             // Views
@@ -128,6 +156,21 @@ namespace HomePodStreamer
 
         protected override void OnExit(ExitEventArgs e)
         {
+            // Stop owntone on app exit (synchronous to ensure it completes before process exits)
+            try
+            {
+                var owntoneService = _serviceProvider?.GetService<IOwntoneHostService>();
+                if (owntoneService != null)
+                {
+                    Logger.Info("Stopping owntone on exit...");
+                    owntoneService.StopAsync().GetAwaiter().GetResult();
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("Error stopping owntone on exit", ex);
+            }
+
             if (_serviceProvider is IDisposable disposable)
             {
                 disposable.Dispose();
