@@ -6,7 +6,9 @@ A Windows desktop application that streams all system audio to Apple HomePod spe
 
 - Stream all system audio (Spotify, YouTube, games, etc.) to HomePod devices
 - Support for multiple HomePods simultaneously
+- Volume normalization: HomePod volume is independent of Windows volume, so you can mute local speakers without affecting HomePod
 - Real-time volume control via owntone API
+- Automatic device discovery (scans every 10 seconds)
 - System tray integration for background operation
 - Persistent settings (remembers enabled devices and volume)
 

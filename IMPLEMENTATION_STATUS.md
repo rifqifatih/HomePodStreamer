@@ -39,6 +39,7 @@ WSL2 Ubuntu (owntone-server)
 
 ### Audio Pipeline
 - WASAPI loopback capture (all system audio)
+- Volume normalization: reads Windows master volume and applies inverse gain so HomePod output is independent of the local volume setting
 - Format conversion (IEEE Float32 -> PCM Int16 S16LE)
 - Resampling to 44.1kHz (persistent WDL resampler)
 - Thread-safe audio buffering with backpressure (max 50 frames)

@@ -12,6 +12,7 @@ using CommunityToolkit.Mvvm.Input;
 using HomePodStreamer.Models;
 using HomePodStreamer.Services;
 using HomePodStreamer.Utils;
+using NAudio.CoreAudioApi;
 using NAudio.Wave;
 
 namespace HomePodStreamer.ViewModels
@@ -31,6 +32,11 @@ namespace HomePodStreamer.ViewModels
         private DispatcherTimer? _scanTimer;
         private bool _isScanning;
         private List<SavedDevice>? _savedDevices;
+
+        // Mute local speakers while streaming to prevent double audio
+        private MMDevice? _volumeDevice;
+        private bool _savedMuteState;
+        private float _savedVolume;
 
         [ObservableProperty]
         private bool _isStreaming;
@@ -223,6 +229,23 @@ namespace HomePodStreamer.ViewModels
                     _audioEncoderService.Initialize(_audioCaptureService.CaptureFormat);
                 }
 
+                // Mute local speakers to eliminate double audio.
+                // WASAPI loopback still captures audio when the endpoint is muted.
+                try
+                {
+                    var enumerator = new MMDeviceEnumerator();
+                    _volumeDevice = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+                    var endpointVolume = _volumeDevice.AudioEndpointVolume;
+                    _savedMuteState = endpointVolume.Mute;
+                    _savedVolume = endpointVolume.MasterVolumeLevelScalar;
+                    endpointVolume.Mute = true;
+                    Logger.Info($"Local speakers muted (was mute={_savedMuteState}, volume={_savedVolume:P0})");
+                }
+                catch (Exception ex)
+                {
+                    Logger.Warning($"Could not mute local speakers: {ex.Message}");
+                }
+
                 // Start audio processing task
                 _streamingCts = new CancellationTokenSource();
                 _processingTask = Task.Run(() => ProcessAudioAsync(_streamingCts.Token));
@@ -247,6 +270,23 @@ namespace HomePodStreamer.ViewModels
             {
                 Logger.Info("Stopping streaming");
                 StatusMessage = "Stopping streaming...";
+
+                // Restore local speakers
+                if (_volumeDevice != null)
+                {
+                    try
+                    {
+                        var endpointVolume = _volumeDevice.AudioEndpointVolume;
+                        endpointVolume.MasterVolumeLevelScalar = _savedVolume;
+                        endpointVolume.Mute = _savedMuteState;
+                        Logger.Info("Local speakers restored");
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Warning($"Could not restore local speakers: {ex.Message}");
+                    }
+                    _volumeDevice = null;
+                }
 
                 // Stop audio capture first (no more data coming in)
                 _audioCaptureService.StopCapture();
@@ -410,6 +450,16 @@ namespace HomePodStreamer.ViewModels
         public void Dispose()
         {
             _scanTimer?.Stop();
+            if (_volumeDevice != null)
+            {
+                try
+                {
+                    _volumeDevice.AudioEndpointVolume.MasterVolumeLevelScalar = _savedVolume;
+                    _volumeDevice.AudioEndpointVolume.Mute = _savedMuteState;
+                }
+                catch { }
+                _volumeDevice = null;
+            }
             _streamingCts?.Cancel();
             _audioCaptureService.DataAvailable -= OnAudioDataAvailable;
             _audioBuffer.Dispose();
