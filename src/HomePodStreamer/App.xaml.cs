@@ -1,6 +1,7 @@
 using System;
 using System.Net.Http;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -156,14 +157,20 @@ namespace HomePodStreamer
 
         protected override void OnExit(ExitEventArgs e)
         {
-            // Stop owntone on app exit (synchronous to ensure it completes before process exits)
+            // Stop owntone on app exit.
+            // Run on thread pool to avoid deadlock: StopAsync uses await internally,
+            // and .GetAwaiter().GetResult() on the UI thread would block the
+            // continuations from being dispatched back.
             try
             {
                 var owntoneService = _serviceProvider?.GetService<IOwntoneHostService>();
                 if (owntoneService != null)
                 {
                     Logger.Info("Stopping owntone on exit...");
-                    owntoneService.StopAsync().GetAwaiter().GetResult();
+                    if (!Task.Run(() => owntoneService.StopAsync()).Wait(TimeSpan.FromSeconds(5)))
+                    {
+                        Logger.Warning("Owntone stop timed out after 5 seconds");
+                    }
                 }
             }
             catch (Exception ex)
