@@ -1,10 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using HomePodStreamer.Models;
@@ -26,6 +28,9 @@ namespace HomePodStreamer.ViewModels
         private readonly AudioBuffer _audioBuffer;
         private CancellationTokenSource? _streamingCts;
         private Task? _processingTask;
+        private DispatcherTimer? _scanTimer;
+        private bool _isScanning;
+        private List<SavedDevice>? _savedDevices;
 
         [ObservableProperty]
         private bool _isStreaming;
@@ -73,7 +78,19 @@ namespace HomePodStreamer.ViewModels
             {
                 var settings = await _settingsService.LoadSettingsAsync();
                 Volume = settings.GlobalVolume;
+                _savedDevices = settings.SavedDevices;
                 Logger.Info("ViewModel initialized");
+
+                // Start automatic device scanning every 10 seconds
+                _scanTimer = new DispatcherTimer
+                {
+                    Interval = TimeSpan.FromSeconds(10)
+                };
+                _scanTimer.Tick += async (s, e) => await AutoScanDevicesAsync();
+                _scanTimer.Start();
+
+                // Run initial scan
+                await AutoScanDevicesAsync();
             }
             catch (Exception ex)
             {
@@ -100,39 +117,56 @@ namespace HomePodStreamer.ViewModels
             }
         }
 
-        [RelayCommand]
-        private async Task RefreshDevicesAsync()
+        private async Task AutoScanDevicesAsync()
         {
+            if (_isScanning) return;
+            if (!_owntoneHostService.IsRunning) return;
+
+            _isScanning = true;
             try
             {
-                StatusMessage = "Checking owntone container...";
-
-                // Ensure container is running, restart if needed
-                if (!_owntoneHostService.IsRunning)
-                {
-                    StatusMessage = "Starting owntone container...";
-                    await _owntoneHostService.StartAsync();
-                    await _owntoneHostService.WaitForHealthyAsync(60);
-                }
-
-                StatusMessage = "Scanning for HomePods...";
                 await _deviceDiscoveryService.StartDiscoveryAsync();
 
                 Application.Current.Dispatcher.Invoke(() =>
                 {
-                    Devices.Clear();
-                    foreach (var device in _deviceDiscoveryService.DiscoveredDevices)
-                    {
-                        Devices.Add(device);
-                    }
-                });
+                    var freshDevices = _deviceDiscoveryService.DiscoveredDevices.ToList();
+                    var freshIds = new HashSet<string>(freshDevices.Select(d => d.Id));
+                    var existingIds = new HashSet<string>(Devices.Select(d => d.Id));
 
-                StatusMessage = $"Found {Devices.Count} device(s)";
+                    // Remove devices that disappeared
+                    var toRemove = Devices.Where(d => !freshIds.Contains(d.Id)).ToList();
+                    foreach (var device in toRemove)
+                    {
+                        Devices.Remove(device);
+                    }
+
+                    // Add newly discovered devices
+                    foreach (var device in freshDevices)
+                    {
+                        if (!existingIds.Contains(device.Id))
+                        {
+                            // Restore saved IsEnabled state
+                            var saved = _savedDevices?.FirstOrDefault(
+                                s => s.Id == device.Id || s.Name == device.Name);
+                            if (saved != null)
+                            {
+                                device.IsEnabled = saved.IsEnabled;
+                            }
+
+                            Devices.Add(device);
+                        }
+                    }
+
+                    StatusMessage = $"Found {Devices.Count} device(s)";
+                });
             }
             catch (Exception ex)
             {
-                StatusMessage = $"Error: {ex.Message}";
-                Logger.Error("Device discovery failed", ex);
+                Logger.Error("Auto-scan failed", ex);
+            }
+            finally
+            {
+                _isScanning = false;
             }
         }
 
@@ -375,6 +409,7 @@ namespace HomePodStreamer.ViewModels
 
         public void Dispose()
         {
+            _scanTimer?.Stop();
             _streamingCts?.Cancel();
             _audioCaptureService.DataAvailable -= OnAudioDataAvailable;
             _audioBuffer.Dispose();

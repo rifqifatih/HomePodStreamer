@@ -37,18 +37,12 @@
         </Grid.RowDefinitions>
 
         <!-- Header -->
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,15">
-            <TextBlock Text="{Binding StatusMessage}"
-                       FontWeight="SemiBold"
-                       VerticalAlignment="Center"
-                       TextWrapping="Wrap"
-                       Width="320"/>
-            <Button Content="Refresh Devices"
-                    Command="{Binding RefreshDevicesCommand}"
-                    Padding="10,5"
-                    Margin="10,0,0,0"
-                    MinWidth="120"/>
-        </StackPanel>
+        <TextBlock Grid.Row="0"
+                   Text="{Binding StatusMessage}"
+                   FontWeight="SemiBold"
+                   VerticalAlignment="Center"
+                   TextWrapping="Wrap"
+                   Margin="0,0,0,15"/>
 
         <!-- Streaming Toggle -->
         <Button Grid.Row="1"
