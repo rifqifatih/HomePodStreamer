@@ -77,7 +77,7 @@ The app automatically starts owntone in WSL2 on launch and stops it on exit.
 
 ## Usage
 
-1. Click **"Refresh Devices"** to discover HomePods on your network
+1. HomePods on your network are discovered automatically
 2. Check the HomePods you want to stream to
 3. Click **"Start Streaming"**
 4. Play any audio on your PC

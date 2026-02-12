@@ -54,7 +54,9 @@ WSL2 Ubuntu (owntone-server)
 - Health check polling before device discovery
 
 ### Device Management
-- Device discovery via owntone `GET /api/outputs` (filters AirPlay type)
+- Automatic device scanning every 10 seconds via owntone `GET /api/outputs` (filters AirPlay type)
+- Smart merge: new devices added, disappeared devices removed, existing device state preserved
+- Saved device preferences (IsEnabled) restored automatically on discovery
 - Enable/disable outputs via owntone `PUT /api/outputs/{id}`
 - Device list with connection state indicators
 - Enable/disable devices during active streaming
